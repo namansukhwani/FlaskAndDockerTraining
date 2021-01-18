@@ -1,0 +1,7 @@
+version: "3"
+
+services:
+  api_week2:
+    build: ./API
+    ports: 
+      - "5000:5000" 
