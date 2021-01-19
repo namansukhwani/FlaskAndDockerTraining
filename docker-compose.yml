@@ -1,7 +1,11 @@
 version: "3"
 
 services:
-  api_week2:
+  rest_api:
     build: ./API
     ports: 
       - "5000:5000" 
+    links:
+      - db
+  db:
+    build: ./DB

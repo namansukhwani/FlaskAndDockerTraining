@@ -1,0 +1,109 @@
+#imports
+from flask import Flask
+from flask_restful import Api, Resource, abort, request
+from pymongo import MongoClient
+
+#intializations
+app=Flask(__name__)
+api=Api(app)
+# db_client=MongoClient('mongodb://db:27017')
+db_client=MongoClient('mongodb://localhost:27017')
+db=db_client.aNewDb
+userNum=db["userNum"]
+
+userNum.insert({
+    "no_of_users":0
+})
+
+#Validation Functions
+def validate_req_body(body,request_name):
+    if 'x' not in body or 'y' not in body:
+        abort(400,status=False,message="variable missing in request")
+    elif request_name=="Divide":
+        try:
+            x=int(body['x'])
+            y=int(body['y'])
+        except Exception as ex:
+            abort(400,status=False,message="Invalid json x and y should be intergers")
+
+        if y==0:
+            abort(400,status=False,message="Division with 0 is always undefined")
+
+#Route Resources
+class Visits(Resource):
+    def get(self):
+        previous_no=userNum.find()[0]['no_of_users']
+        userNum.update({},{"$set":{"no_of_users":previous_no+1}})
+        return str("Hello Uesr "+str(previous_no+1))
+
+
+class Add(Resource):
+    def post(self):
+        req_json=request.get_json()
+        validate_req_body(req_json,'Add')
+        
+        try:
+            x=int(req_json['x'])
+            y=int(req_json['y'])
+        except Exception as ex:
+            abort(400,status=False,message="Invalid json x and y should be intergers")
+        
+        return {
+            "status":True,
+            "data":x+y
+        }
+
+class Substract(Resource):
+    def post(self):
+        req_json=request.get_json()
+        validate_req_body(req_json,'Substract')
+        
+        try:
+            x=int(req_json['x'])
+            y=int(req_json['y'])
+        except Exception as ex:
+            abort(400,status=False,message="Invalid json x and y should be intergers")
+        
+        return {
+            "status":True,
+            "data":x-y
+        }
+
+class Multiply(Resource):
+    def post(self):
+        req_json=request.get_json()
+        validate_req_body(req_json,'Multiply')
+        
+        try:
+            x=int(req_json['x'])
+            y=int(req_json['y'])
+        except Exception as ex:
+            abort(400,status=False,message="Invalid json x and y should be intergers")
+        
+        return {
+            "status":True,
+            "data":x*y
+        }
+
+class Divide(Resource):
+    def post(self):
+        req_json=request.get_json()
+        validate_req_body(req_json,'Divide')
+        x=int(req_json['x'])
+        y=int(req_json['y'])
+        
+        return {
+            "status":True,
+            "data":x/y
+        }
+
+#PATHS
+api.add_resource(Add,'/add')
+api.add_resource(Substract,'/substract')
+api.add_resource(Multiply,'/multiply')
+api.add_resource(Divide,'/divide')
+api.add_resource(Visits,'/hello')
+
+if __name__=="__main__":
+    app.run()
+    # app.run(host="0.0.0.0")
