@@ -7,8 +7,8 @@ import bcrypt
 #intializations
 app=Flask(__name__)
 api=Api(app)
-db_client=MongoClient('mongodb://db:27017')
-# db_client=MongoClient('mongodb://localhost:27017')
+# db_client=MongoClient('mongodb://db:27017')
+db_client=MongoClient('mongodb://localhost:27017')
 db=db_client.SentenceDatabase
 users_collection=db['Users']
 
@@ -178,5 +178,5 @@ def Home():
     """
 
 if __name__=="__main__":
-    # app.run()
-    app.run(host="0.0.0.0")
+    app.run()
+    # app.run(host="0.0.0.0")
