@@ -1,0 +1,11 @@
+version: "3"
+
+services:
+  rest_api:
+    build: ./API
+    ports: 
+      - "5000:5000" 
+    links:
+      - db
+  db:
+    build: ./DB
