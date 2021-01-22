@@ -3,14 +3,16 @@ from flask import Flask
 from flask_restful import Api, Resource, abort, request
 from pymongo import MongoClient
 import bcrypt
+import spacy
 
 #intializations
 app=Flask(__name__)
 api=Api(app)
 db_client=MongoClient('mongodb://db:27017')
 # db_client=MongoClient('mongodb://localhost:27017')
-db=db_client.SentenceDatabase
+db=db_client.SimilarityDatabase
 users_collection=db['Users']
+
 
 #Validation Functions
 def validate_user_req(body):
@@ -24,6 +26,8 @@ def check_user_already_exists(username):
     return False
 
 def verify_user(username,password):
+    if check_user_already_exists(username):
+        abort(400,status=False,message="user with this username dosen't exists.")
     user=users_collection.find({"username":username})[0]
     print(str(user))
     if user!=None:
@@ -33,8 +37,8 @@ def verify_user(username,password):
         abort(400,status=False,message="Incorrect user password")
     abort(400,status=False,message="Incorrect username or password")
 
-def validate_sentence_post_req(body):
-    if 'username' not in body or 'password' not in body or 'sentence' not in body:
+def validate_detect_post_req(body):
+    if 'username' not in body or 'password' not in body or 'text1' not in body or 'text2' not in body:
         abort(400,status=False,message="Request parameters are missing.")
 
 #Route Resources Classes
@@ -56,7 +60,6 @@ class RegisterUser(Resource):
         users_collection.insert({
             "username":username,
             "password":hashed_pass,
-            "sentence":"",
             "token":6
         })
 
@@ -65,63 +68,47 @@ class RegisterUser(Resource):
             "message":str("User created with username "+username+" with free 6 request tokens")
         },200
 
-class Sentences(Resource):
-    def get(self):
-        req_json=request.get_json()
-        
-        validate_user_req(req_json)
-
-        username=str(req_json['username'])
-        password=str(req_json['password'])
-
-        user_data=verify_user(username,password)
-        
-
-        if user_data['token']>0:
-            sentence=users_collection.find({"username":username})[0]['sentence']
-            
-            users_collection.update({
-                'username':username
-            },{
-                "$set":{
-                    "token":user_data['token']-1
-                }
-            })
-
-
-            return{
-                "status":True,
-                "message":"Sentence fetched sucessfully",
-                "data":str(sentence)
-            }
-
-        abort(400,status=False,message="No more tokens left for request")
+class Detect(Resource):
     
     def post(self):
         req_json=request.get_json()
 
-        validate_sentence_post_req(req_json)
+        validate_detect_post_req(req_json)
 
         username=str(req_json['username'])
         password=str(req_json['password'])
-        sentence=str(req_json['sentence'])
+        text1=str(req_json['text1'])
+        text2=str(req_json['text2'])
 
         user_data=verify_user(username,password)
 
         if user_data['token']>0:
+            
+            #calculate the similarity
+            nlp=spacy.load('en_core_web_sm')
+            
+            text1=nlp(text1)
+            text2=nlp(text2)
+
+            similarity_ratio=text1.similarity(text2)
+            similarity_percentage=similarity_ratio*100
+
+
             users_collection.update({
                 'username':username
             },{
                 "$set":{
-                    "sentence":sentence,
                     "token":user_data['token']-1
                 }
             })
 
             return{
                 "status":True,
-                "message":"Sentence added sucessfully",
-                "data":sentence
+                "message":"Similarities checked sucessfully",
+                "data":{
+                    "similarity_ratio":similarity_ratio,
+                    "similatity_percentage":str(str(round(similarity_percentage,2))+"%")
+                }
             },200
         
         abort(400,status=False,message="No more tokens left for request")
@@ -161,20 +148,20 @@ class BuyTokens(Resource):
 
 #PATHS
 api.add_resource(RegisterUser,'/register')
-api.add_resource(Sentences,'/sentence')
+api.add_resource(Detect,'/detect')
 api.add_resource(BuyTokens,'/buytokens/<int:no_of_tokens>')
 
 @app.route('/',methods=['GET'])
 def Home():
     return """
-        <h1>SENTENCE API</h1>
+        <h1>SIMILARITIES API</h1>
         <br>
         <h3>Available routes</h3>
-        <p>/register      &nbsp;&nbsp;&nbsp;&nbsp;       POST      &nbsp;&nbsp;&nbsp;&nbsp;   to register a user</p>
-        <p>/sentence      &nbsp;&nbsp;&nbsp;&nbsp;       GET,POST  &nbsp;&nbsp;&nbsp;&nbsp;   to retrive and post sentence</p>
-        <p>/buytokens/3   &nbsp;&nbsp;&nbsp;&nbsp;       POST    &nbsp;&nbsp;&nbsp;&nbsp;    to buy three tokens</p>
-        <p>/buytokens/6    &nbsp;&nbsp;&nbsp;&nbsp;      POST     &nbsp;&nbsp;&nbsp;&nbsp;    to buy six tokens</p>
-        <p>/buytokens/10   &nbsp;&nbsp;&nbsp;&nbsp;       POST   &nbsp;&nbsp;&nbsp;&nbsp;      to buy ten tokens</p>
+        <p>/register&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;POST&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;to register a user</p>
+        <p>/detect&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;POST&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;to detect the similarity</p>
+        <p>/buytokens/3&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;POST&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;to buy three tokens</p>
+        <p>/buytokens/6&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;POST&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;to buy six tokens</p>
+        <p>/buytokens/10&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;POST&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;to buy ten tokens</p>
     """
 
 if __name__=="__main__":
